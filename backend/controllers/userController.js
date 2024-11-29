@@ -1,9 +1,5 @@
-const {
-  genarateToken,
-} = require("../config/jwtToken.js");
-const {
-  genarateRefreshToken,
-} = require("../config/refreshToken.js");
+const { genarateToken } = require("../config/jwtToken.js");
+const { genarateRefreshToken } = require("../config/refreshToken.js");
 const userModel = require("../models/userModel.js");
 const asyncHandle = require("express-async-handler");
 const jwt = require("jsonwebtoken");
@@ -12,269 +8,219 @@ const bcrypt = require("bcrypt");
 require("dotenv").config();
 
 // create user
-const addUser = async (req, res) => {
-  const { email } = req.body;
-  const exisitingUser =
-    await userModel.findOne({ email }); // kiểm tra có email nào chưa
-  if (exisitingUser) {
-    return res.status(500).send({
-      success: true,
-      message: "Email này đã tồn tại", // nếu tìm thấy có tồn tại
-    });
-  }
+const signUpUser = async (req, res) => {
+  const { email, displayName, phoneNumber, address, password, isStaff } =
+    req.body;
+
   try {
-    const newUser = new userModel(
-      req.body
-    ).save();
-    res.status(201).send({
-      newUser: req.body,
-      success: true,
-      message:
-        "Create new user successfully",
+    const role = isStaff ? "staff" : "user";
+
+    const existingUser = await userModel.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email đã được đăng ký!" });
+    }
+    const newUser = new userModel({
+      email,
+      displayName,
+      phoneNumber,
+      address,
+      password,
+      role,
     });
+
+    // Save user to database
+    await newUser.save();
+
+    res.status(201).json({ message: "Đăng ký thành công!" });
   } catch (error) {
-    console.log(error);
-    res.status(500).send({
-      message: "Create new User False",
-      success: false,
-      error: error,
-    });
+    res.status(500).json({ message: "Đăng ký thất bại", error: error.message });
+  }
+};
+const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await userModel.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
+
+    if (user.role !== "user") {
+      return res
+        .status(403)
+        .json({ message: "Access denied. Only users can login." });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res
+      .status(200)
+      .json({ token, user: { email: user.email, role: user.role } });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// login user
-const loginUser = asyncHandle(
-  async (req, res) => {
-    const { email, password } =
-      req.body;
+const updateUser = async (req, res) => {
+  const userId = req.params.id;
+  const { email, displayName, address, phoneNumber } = req.body;
 
-    const findUser =
-      await userModel.findOne({
-        email,
-      });
-    if (
-      findUser &&
-      (await findUser.isPasswordMatched(
-        password
-      ))
-    ) {
-      const refreshToken =
-        await genarateRefreshToken(
-          findUser?._id
-        ); // tạo taoken trong 3 ngày
-      const updateUser =
-        await userModel.findByIdAndUpdate(
-          findUser?._id,
-          {
-            refreshToken: refreshToken,
-          },
-          {
-            new: true,
-          }
-        );
-      res.cookie(
-        "refreshToken",
-        refreshToken,
-        {
-          httpOnly: true,
-          maxAge: 72 * 60 * 60 * 1000, // thơi gian sống của cookie và có tên là refreshtoken (72 giờ)
-        }
-      );
-      res.status(201).send({
-        success: true,
-        message: "Login successfully",
-        _id: findUser?._id,
-        name: findUser?.name,
-        email: findUser?.email,
-        address: findUser?.address,
-        mobile: findUser?.mobile,
-        password: findUser?.password,
-        role: findUser?.role,
-        token: genarateToken(
-          findUser?._id
-        ), // hiển thị ra token
-      });
-    } else {
-      return res.status(500).send({
-        success: true,
-        message:
-          "please create new user, Invalid", // nếu tìm thấy có tồn tại
-      });
+  try {
+    // Find the user by ID and update specific fields
+    const updatedUser = await userModel.findByIdAndUpdate(
+      userId,
+      { email, displayName, address, phoneNumber },
+      {
+        new: true, // Return the updated document
+        runValidators: true, // Run validation based on model schema
+      }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
     }
+
+    res.status(200).json({ message: "User updated successfully", updatedUser });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-);
+};
+const deleteUser = async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    const deletedUser = await userModel.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 
 // login admin
-const loginAdmin = asyncHandle(
-  async (req, res) => {
-    const { email, password } =
-      req.body;
-    const findAdmin =
-      await userModel.findOne({
-        email,
-      });
-    if (findAdmin.role !== "admin") {
-      return res.status(500).send({
-        success: false,
-        message: "not authorised", // nếu tìm thấy có tồn tại
-      });
+const loginAdmin = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await userModel.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
-    if (
-      findAdmin &&
-      (await findAdmin.isPasswordMatched(
-        password
-      ))
-    ) {
-      const refreshToken =
-        await genarateRefreshToken(
-          findAdmin?._id
-        );
-      const updateUser =
-        await userModel.findByIdAndUpdate(
-          findAdmin?._id,
-          {
-            refreshToken: refreshToken,
-          },
-          {
-            new: true,
-          }
-        );
-      res.cookie(
-        "refreshToken",
-        refreshToken,
-        {
-          httpOnly: true,
-          maxAge: 72 * 60 * 60 * 1000,
-        }
-      );
-      res.status(201).send({
-        success: true,
-        message: "Login successfully",
-        _id: findAdmin?._id,
-        name: findAdmin?.name,
-        email: findAdmin?.email,
-        mobile: findAdmin?.mobile,
-        password: findAdmin?.password,
-        role: findAdmin?.role,
-        token: genarateToken(
-          findAdmin?._id
-        ), // hiển thị ra token
-      });
-    } else {
-      return res.status(500).send({
-        success: true,
-        message:
-          "please create new user, Invalid", // nếu tìm thấy có tồn tại
-      });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      "yourSecretKey",
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    res.json({
+      token,
+      user: { role: user.role, displayName: user.displayName },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
   }
-);
+};
 
 // handle refresh token
-const handleRefreshToken = asyncHandle(
-  async (req, res) => {
-    const cookie = req.cookies;
-    console.log(cookie);
-    if (!cookie?.refreshToken) {
-      res.send({
-        success: false,
-        message:
-          "No refresh token in cookies",
-      });
-    }
-    const refreshToken =
-      cookie?.refreshToken;
-    console.log(refreshToken);
-    const user =
-      await userModel.findOne({
-        refreshToken,
-      });
-    if (!user) {
+const handleRefreshToken = asyncHandle(async (req, res) => {
+  const cookie = req.cookies;
+  console.log(cookie);
+  if (!cookie?.refreshToken) {
+    res.send({
+      success: false,
+      message: "No refresh token in cookies",
+    });
+  }
+  const refreshToken = cookie?.refreshToken;
+  console.log(refreshToken);
+  const user = await userModel.findOne({
+    refreshToken,
+  });
+  if (!user) {
+    res.status(401).send({
+      success: false,
+      message: "No refresh token present in db or not matched",
+      user,
+    });
+  }
+  jwt.verify(refreshToken, "SECRET", (err, decoded) => {
+    if (err || user.id !== decoded.id) {
       res.status(401).send({
         success: false,
-        message:
-          "No refresh token present in db or not matched",
-        user,
+        message: "there is something wrong with refresh token",
       });
     }
-    jwt.verify(
-      refreshToken,
-      "SECRET",
-      (err, decoded) => {
-        if (
-          err ||
-          user.id !== decoded.id
-        ) {
-          res.status(401).send({
-            success: false,
-            message:
-              "there is something wrong with refresh token",
-          });
-        }
-        const accessToken =
-          genarateToken(user.id);
-        res.status(200).send({
-          success: true,
-          message:
-            "refresh token success",
-          accessToken,
-        });
-      }
-    );
-  }
-);
+    const accessToken = genarateToken(user.id);
+    res.status(200).send({
+      success: true,
+      message: "refresh token success",
+      accessToken,
+    });
+  });
+});
 
 // logout func
-const logout = asyncHandle(
-  async (req, res) => {
-    const cookie = req.cookies;
-    if (!cookie?.refreshToken)
-      throw new Error(
-        "No Refresh Token in Cookies"
-      );
-    const refreshToken =
-      cookie.refreshToken;
-    const user =
-      await userModel.findOne({
-        refreshToken,
-      });
-    if (!user) {
-      res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: true,
-      });
-      return res.status(200).send({
-        success: true,
-        message:
-          "clear cookies success",
-      }); // forbidden
-    }
-    await userModel.findOneAndUpdate(
-      { refreshToken },
-      {
-        $set: { refreshToken: "" },
-      }
-    );
+const logout = asyncHandle(async (req, res) => {
+  const cookie = req.cookies;
+  if (!cookie?.refreshToken) throw new Error("No Refresh Token in Cookies");
+  const refreshToken = cookie.refreshToken;
+  const user = await userModel.findOne({
+    refreshToken,
+  });
+  if (!user) {
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: true,
     });
-    res.status(200).send({
+    return res.status(200).send({
       success: true,
       message: "clear cookies success",
     }); // forbidden
   }
-);
+  await userModel.findOneAndUpdate(
+    { refreshToken },
+    {
+      $set: { refreshToken: "" },
+    }
+  );
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: true,
+  });
+  res.status(200).send({
+    success: true,
+    message: "clear cookies success",
+  }); // forbidden
+});
 
 // get all users
-const getAllUsers = async (
-  req,
-  res
-) => {
+const getAllUsers = async (req, res) => {
   try {
-    const user = await userModel.find(
-      {}
-    );
+    const user = await userModel.find({});
     res.json(user);
   } catch (error) {
     console.log(error);
@@ -286,18 +232,13 @@ const getAllUsers = async (
 };
 
 // get a user
-const getsignUser = async (
-  req,
-  res
-) => {
+const getsignUser = async (req, res) => {
   const { _id } = req.params;
   try {
-    const getUser =
-      await userModel.findById(_id);
+    const getUser = await userModel.findById(_id);
     res.status(200).json({
       success: true,
-      message:
-        "Get user successfully !",
+      message: "Get user successfully !",
       getUser,
     });
   } catch (error) {
@@ -310,62 +251,46 @@ const getsignUser = async (
 };
 
 // update user
-const updateUser = asyncHandle(
-  async (req, res) => {
-    const { _id } = req.params;
-    try {
-      // Hash lại mật khẩu mới nếu có
-      if (req.body.password) {
-        const salt =
-          await bcrypt.genSaltSync(10);
-        req.body.password =
-          await bcrypt.hash(
-            req.body.password,
-            salt
-          );
-      }
+// const updateUser = asyncHandle(async (req, res) => {
+//   const { _id } = req.params;
+//   try {
+//     // Hash lại mật khẩu mới nếu có
+//     if (req.body.password) {
+//       const salt = await bcrypt.genSaltSync(10);
+//       req.body.password = await bcrypt.hash(req.body.password, salt);
+//     }
 
-      const user =
-        await userModel.findByIdAndUpdate(
-          _id,
-          {
-            name: req?.body?.name,
-            email: req?.body?.email,
-            mobile: req?.body?.mobile,
-            password:
-              req?.body?.password,
-            role: req?.body?.role,
-          },
-          {
-            new: true,
-          }
-        );
-      res.json(user);
-    } catch (error) {
-      console.log(error);
-      res.status(500).send({
-        success: false,
-        message: "Update user error !",
-      });
-    }
-  }
-);
+//     const user = await userModel.findByIdAndUpdate(
+//       _id,
+//       {
+//         name: req?.body?.name,
+//         email: req?.body?.email,
+//         mobile: req?.body?.mobile,
+//         password: req?.body?.password,
+//         role: req?.body?.role,
+//       },
+//       {
+//         new: true,
+//       }
+//     );
+//     res.json(user);
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).send({
+//       success: false,
+//       message: "Update user error !",
+//     });
+//   }
+// });
 
 // delete a user
-const deletesignUser = async (
-  req,
-  res
-) => {
+const deletesignUser = async (req, res) => {
   const { _id } = req.params;
   try {
-    const user =
-      await userModel.findByIdAndDelete(
-        _id
-      );
+    const user = await userModel.findByIdAndDelete(_id);
     res.status(200).json({
       success: true,
-      message:
-        "delete user successfully !",
+      message: "delete user successfully !",
     });
   } catch (error) {
     console.log(error);
@@ -375,43 +300,40 @@ const deletesignUser = async (
     });
   }
 };
-const updatePassword = asyncHandle(
-  async (req, res) => {
-    const { _id } = req.user;
-    const password = req.body.password;
-    validateMongooseDbId(_id);
-    const user =
-      await userModel.findById(_id);
-    console.log(password);
-    if (password) {
-      user.password = password;
-      const updatedPassword =
-        await user.save();
-      res.status(200).send({
-        success: true,
-        message:
-          "Update password success",
-        updatedPassword,
-      });
-    } else {
-      res.status(200).send({
-        success: true,
-        message: "Update password ...",
-        user,
-      });
-    }
+const updatePassword = asyncHandle(async (req, res) => {
+  const { _id } = req.user;
+  const password = req.body.password;
+  validateMongooseDbId(_id);
+  const user = await userModel.findById(_id);
+  console.log(password);
+  if (password) {
+    user.password = password;
+    const updatedPassword = await user.save();
+    res.status(200).send({
+      success: true,
+      message: "Update password success",
+      updatedPassword,
+    });
+  } else {
+    res.status(200).send({
+      success: true,
+      message: "Update password ...",
+      user,
+    });
   }
-);
+});
 
 module.exports = {
-  addUser,
+  signUpUser,
   loginUser,
   getAllUsers,
   getsignUser,
   deletesignUser,
   updateUser,
-  handleRefreshToken,
-  logout,
-  updatePassword,
+  deleteUser,
   loginAdmin,
+  // handleRefreshToken,
+  // logout,
+  // updatePassword,
+  // loginAdmin,
 };

@@ -1,25 +1,27 @@
-// const express = require("express");
-// const route = express.Router();
+const express = require("express");
+const route = express.Router();
 
 // const {
 //   authMiddleware,
 //   isAdmin,
 // } = require("../middlewares/authMiddleware.js");
-// const {
-//   addUser,
-//   loginUser,
-//   loginAdmin,
-//   updateUser,
-//   updatePassword,
-//   getAllUsers,
-//   getsignUser,
-//   handleRefreshToken,
-//   logout,
-//   deletesignUser,
-// } = require("../controllers/userController.js");
+const {
+  signUpUser,
+  loginUser,
+  getAllUsers,
+  updateUser,
+  deleteUser,
+  loginAdmin,
+} = require("../controllers/userController");
 
-// route.post("/register", addUser);
-// route.post("/login", loginUser);
+route.post("/signup", signUpUser);
+route.post("/login", loginUser);
+route.get("/get-all-users", getAllUsers);
+route.get("/get-all-users", getAllUsers);
+route.delete("/delete-user/:id", deleteUser);
+route.put("/update-user/:id", updateUser);
+route.post("/login-admin", loginAdmin);
+
 // route.post("/admin-login", loginAdmin);
 
 // route.put(
@@ -33,7 +35,6 @@
 //   updatePassword
 // );
 
-// route.get("/all-user", getAllUsers);
 // route.get(
 //   "/get-user/:_id",
 //   authMiddleware,
@@ -51,4 +52,4 @@
 //   deletesignUser
 // );
 
-// module.exports = route;
+module.exports = route;

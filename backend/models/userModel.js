@@ -2,91 +2,57 @@ const mongoose = require("mongoose"); // Erase if already required
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const { type } = require("os");
-// Declare the Schema of the Mongo model
 var userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      default: "User",
-    },
     email: {
       type: String,
       required: true,
       unique: true,
+      trim: true,
+      lowercase: true,
+      match: [/^\S+@\S+\.\S+$/, "Invalid email address"],
     },
-    password: {
+    displayName: {
       type: String,
       required: true,
+      trim: true,
+    },
+    phoneNumber: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^\d{10,11}$/, "Invalid phone number"],
     },
     address: {
       type: String,
+      required: false,
+      trim: true,
     },
-    mobile: {
+
+    password: {
       type: String,
+      required: true,
+      minlength: 6, // Minimum password length
     },
     role: {
       type: String,
+      enum: ["user", "staff", "admin"],
       default: "user",
-    },
-    Rating: {
-      type: Array,
-    },
-    posts: {
-      type: Array,
-    },
-    joins: {
-      type: Array,
     },
     refreshToken: {
       type: String,
+      required: false,
     },
-    passwordChangedAt: Date,
-    passwordResetToken: String,
-    passwordResetExpires: Date,
   },
   {
-    timestamps: true, // time create
+    timestamps: true,
   }
 );
 
-userSchema.pre(
-  "save",
-  async function (next) {
-    //Gọi hàm next để tiếp tục quá trình lưu tài liệu vào cơ sở dữ liệu.
-    if (!this.isModified("password")) {
-      next();
-    }
-    const salt =
-      await bcrypt.genSaltSync(10); //chuỗi ngẫu nhiên được thêm vào mật khẩu có tính bảo mật cao hơn
-    this.password = await bcrypt.hash(
-      this.password,
-      salt
-    ); // hash dùng để mã hóa mật khẩu của người dùng
-  }
-);
-userSchema.methods.isPasswordMatched =
-  async function (enteredPassword) {
-    return await bcrypt.compare(
-      enteredPassword,
-      this.password
-    );
-  };
-
-userSchema.methods.createPasswordResetToken =
-  async function () {
-    const resettoken = crypto
-      .randomBytes(32)
-      .toString("hex");
-    this.passwordResetToken = crypto
-      .createHash("sha256")
-      .update(resettoken)
-      .digest("hex");
-    this.passwordResetExpires =
-      Date.now() + 30 * 60 * 1000; // 10 minutes
-    return resettoken;
-  };
-//Export the model
-module.exports = mongoose.model(
-  "User",
-  userSchema
-);
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+module.exports = mongoose.model("User", userSchema);

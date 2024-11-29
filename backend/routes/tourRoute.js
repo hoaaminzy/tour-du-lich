@@ -5,11 +5,18 @@ const route = express.Router();
 //   authMiddleware,
 //   isAdmin,
 // } = require("../middlewares/authMiddleware.js");
-const { addTour, getAllTours } = require("../controllers/tourController.js");
+const {
+  addTour,
+  getAllTours,
+  updateTour,
+  deleteTour,
+} = require("../controllers/tourController.js");
+const upload = require("../config/multerConfig.js");
 
-route.post("/add-tour", addTour);
+route.post("/add-tour", upload.array("images", 4), addTour);
 route.get("/get-all-tours", getAllTours);
-
+route.put("/update-tour/:id", upload.array("images", 4), updateTour);
+route.delete("/delete-tour/:id", deleteTour);
 // route.post(
 //   "/updatesp",
 

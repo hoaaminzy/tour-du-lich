@@ -1,19 +1,34 @@
 const bookingModel = require("../models/bookingModel");
-
-// create user
+const tourModel = require("../models/tourModel");
 const addBooking = async (req, res) => {
   // const { _id } = req.user;
+  const { passengers, tourId, tourDetail } = req.body;
   try {
+    const tour = await tourModel.findById(tourId);
+    console.log("tour",tour);
+    const slotsNeeded =
+      passengers.slotBaby + passengers.slotChildren + passengers.slotAdult;
+
+    const tourDetails = tour.inforTourDetail.id(tourDetail[0]._id);
+    console.log("tourDeital",tourDetails);
+    if (tourDetails.slot < slotsNeeded) {
+      return res.status(400).json({ message: "Not enough slots available" });
+    }
     const newBooking = await bookingModel.create({
       ...req.body,
       // updateBy: _id,
     });
+    
+    tourDetails.slot -= slotsNeeded;
+    await tour.save();
 
     res.status(201).send({
       newBooking: newBooking,
       success: true,
       message: "Create new booking successfully",
     });
+
+    console.log("Booking new", newBooking);
   } catch (error) {
     console.log(error);
     res.status(500).send({
@@ -41,171 +56,105 @@ const getAllBookings = async (req, res) => {
     });
   }
 };
+const updateBookingStatus = async (req, res) => {
+  const { bookingId, status } = req.body;
 
-// // get a user
-// const getsignProduct = async (req, res) => {
-//   const { id } = req.params;
-//   try {
-//     const getProduct = await productModel.findById(id).populate("updateBy");
-//     res.status(200).json({
-//       success: true,
-//       message: "Get user successfully !",
-//       getProduct,
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send({
-//       success: false,
-//       message: "Get user error !",
-//     });
-//   }
-// };
+  try {
+    const updatedBooking = await bookingModel.findOneAndUpdate(
+      { bookingId },
+      { status },
+      { new: true }
+    );
+    if (!updatedBooking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    res.json({
+      message: "Status updated successfully",
+      booking: updatedBooking,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating status", error });
+  }
+};
 
-// update user
-// const updateProduct = asyncHandle(async (req, res) => {
-// const { _id } = req.params;
-// try {
-//   // Hash lại mật khẩu mới nếu có
-//   if (req.body.password) {
-//     const salt =
-//       await bcrypt.genSaltSync(10);
-//     req.body.password =
-//       await bcrypt.hash(
-//         req.body.password,
-//         salt
-//       );
-//   }
-//   const user =
-//     await productModel.findByIdAndUpdate(
-//       _id,
-//       {
-//         name: req?.body?.name,
-//         email: req?.body?.email,
-//         mobile: req?.body?.mobile,
-//         password:
-//           req?.body?.password,
-//         role: req?.body?.role,
-//       },
-//       {
-//         new: true,
-//       }
-//     );
-//   res.json(user);
-// } catch (error) {
-//   console.log(error);
-//   res.status(500).send({
-//     success: false,
-//     message: "Update user error !",
-//   });
-// }
-// });
+const updateBookingedDetail = async (req, res) => {
+  const { fullName, phone, email, address, selectedPayment, messageContent } =
+    req.body;
 
-// delete a user
-// const deletesignProduct = async (req, res) => {
-//   const { id } = req.params;
-//   try {
-//     const product = await productModel.findByIdAndDelete(id);
-//     res.status(200).json({
-//       success: true,
-//       message: "delete product successfully !",
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send({
-//       success: false,
-//       message: "delete product error !",
-//     });
-//   }
-// };
-// const filterProduct = async (req, res) => {
-//   const filters = req.body;
-//   const filterQuery = {};
-//   if (filters.city) filterQuery.city = filters.city;
-//   if (filters.action) filterQuery.action = filters.action;
-//   if (filters.type) filterQuery.type = filters.type;
-//   console.log(filterQuery.price);
-//   if (filters.price) {
-//     switch (filters.price) {
-//       case "1":
-//         filterQuery.price = {
-//           $lt: 500000,
-//         };
-//         break;
-//       case "2":
-//         filterQuery.price = {
-//           $gte: 500000,
-//           $lte: 1000000,
-//         };
-//         break;
-//       case "3":
-//         filterQuery.price = {
-//           $gte: 1000000,
-//           $lte: 2000000,
-//         };
-//         break;
-//       case "4":
-//         filterQuery.price = {
-//           $gte: 2000000,
-//           $lte: 3000000,
-//         };
-//         break;
-//       case "5":
-//         filterQuery.price = {
-//           $gt: 3000000,
-//         };
-//         break;
-//     }
-//   }
+  try {
+    const booking = await bookingModel.findById(req.params.id);
 
-//   try {
-//     const products = await productModel.find(filterQuery);
-//     res.status(200).json(products);
-//   } catch (error) {
-//     res.status(400).json({ message: error.message });
-//   }
-// };
-// const updateSp = async (req, res) => {
-//   try {
-//     const { _id, status } = req.body;
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
 
-//     // Kiểm tra dữ liệu đầu vào
-//     if (!_id || typeof status === "undefined") {
-//       return res.status(400).json({
-//         message: "Thiếu dữ liệu yêu cầu",
-//       });
-//     }
+    // Update fields
+    booking.fullName = fullName || booking.fullName;
+    booking.phone = phone || booking.phone;
+    booking.email = email || booking.email;
+    booking.address = address || booking.address;
+    booking.selectedPayment = selectedPayment || booking.selectedPayment;
+    booking.messageContent = messageContent || booking.messageContent;
 
-//     const product = await productModel.findById(_id);
+    // Save changes
+    await booking.save();
 
-//     if (!product) {
-//       return res.status(404).json({
-//         message: "Không thấy id sản phẩm này",
-//       });
-//     }
+    res.status(200).json(booking);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Error updating booking", error });
+  }
+};
 
-//     product.statusProduct = status;
+const cancelTour = async (req, res) => {
+  const { id } = req.params;
 
-//     await product.save();
+  try {
+    await bookingModel.findByIdAndDelete(id); // Xóa booking theo ObjectId
 
-//     res.status(200).json({
-//       message: "Cập nhật sản phẩm thành công",
-//       product,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Cập nhật sản phẩm thất bại",
-//       error: error.message,
-//     });
-//   }
-// };
+    return res.status(200).json({ message: "Hủy và xóa tour thành công." });
+  } catch (error) {
+    console.error("Lỗi khi hủy tour:", error);
+    return res
+      .status(500)
+      .json({ message: "Có lỗi xảy ra, vui lòng thử lại sau." });
+  }
+};
+
+const updateBookingedStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    const booking = await bookingModel.findById(id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Update status based on input
+    if (status === "Hủy xác nhận") {
+      booking.status = "Thanh toán thành công";
+    } else if (status === "Đang hoạt động") {
+      booking.status = "Đang hoạt động";
+    } else if (status === "Đã hoàn thành tour") {
+      booking.status = "Đã hoàn thành tour";
+    } else {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    await booking.save();
+    return res.status(200).json(booking);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Error updating booking", error });
+  }
+};
 
 module.exports = {
   addBooking,
   getAllBookings,
-  // updateSp,
-  // getsignProduct,
-  // deletesignProduct,
-  // updateProduct,
-  // getAllProduct,
-  // filterProduct,
+  updateBookingStatus,
+  updateBookingedDetail,
+  cancelTour,
+  updateBookingedStatus,
 };

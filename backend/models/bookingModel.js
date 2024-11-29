@@ -1,67 +1,81 @@
 const mongoose = require("mongoose");
 
-const passengerSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
+// Define the payment schema
+const paymentSchema = new mongoose.Schema(
+  {
+    pay: { type: Object, required: true },
+    userId: String,
+    user: {
+      name: String,
+      address: String,
+      numberphone: String,
+      email: String,
+    },
+    inforTour: {
+      type: Object,
+    },
+    orderId: String,
+    totalPrice: Number,
+    status: { type: String, default: "Chờ thanh toán" },
   },
-  gender: {
-    type: String,
-    enum: ["nam", "nu"], // Assuming 'nam' for male and 'nu' for female
-    required: true,
-  },
-  birthDate: {
-    type: String, // Format: dd/mm/yyyy
-    required: true,
-  },
-});
-const passengersSchema = new mongoose.Schema({
-  adults: [passengerSchema],
-  children: [passengerSchema],
-  baby: [passengerSchema],
-});
-
-// Define the schema
+  { timestamps: true }
+);
 const bookingSchema = new mongoose.Schema(
   {
+    userId: {
+      type: String,
+    },
+    tourId: {
+      type: String,
+    },
+    bookingId: {
+      type: String,
+    },
     fullName: {
       type: String,
-      required: true,
     },
     phone: {
       type: String,
-      required: true,
     },
     email: {
       type: String,
-      required: true,
     },
     address: {
       type: String,
-      required: true,
     },
     passengers: {
-      type: passengersSchema,
-      required: true,
+      type: Object,
+    },
+    tourDetail: {
+      type: Array,
+    },
+    tourInfor: {
+      type: Array,
+      default: [],
     },
     selectedPayment: {
       type: String,
       enum: ["cash", "bank", "momo"],
-      required: true,
     },
     totalPrice: {
       type: String,
-      required: true,
     },
     messageContent: {
       type: String,
       maxlength: 500,
     },
+    status: {
+      type: String,
+      default: "Chờ xác nhận",
+    },
+    payment: {
+      type: [paymentSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
 
-// Create the model
-const Booking = mongoose.model("booking", bookingSchema);
+const Booking = mongoose.model("Booking", bookingSchema);
 
 module.exports = Booking;

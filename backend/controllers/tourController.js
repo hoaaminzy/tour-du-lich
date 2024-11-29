@@ -1,27 +1,45 @@
 const tourModel = require("../models/tourModel");
 const asyncHandle = require("express-async-handler");
 
-// create user
 const addTour = async (req, res) => {
-  // const { _id } = req.user;
   try {
-    const newTour = await tourModel.create({
-      ...req.body,
-      // updateBy: _id,
+    const {
+      title,
+      slug,
+      city,
+      endCity,
+      vehicle,
+      hotel,
+      typeCombo,
+      combo,
+      inforTourDetail,
+    } = req.body;
+
+    // Chuyển đổi lại `inforTourDetail` từ chuỗi JSON về đối tượng nếu cần
+    const inforTourDetailObj = JSON.parse(inforTourDetail);
+
+    // Tạo mảng chứa URLs của ảnh đã tải lên Cloudinary
+    const images = req.files.map((file) => file.path);
+
+    // Lưu các thông tin khác vào database
+    const newTour = new tourModel({
+      title,
+      slug,
+      city,
+      endCity,
+      vehicle,
+      hotel,
+      typeCombo,
+      combo,
+      inforTourDetail: inforTourDetailObj,
+      images,
     });
 
-    res.status(201).send({
-      newTour: newTour,
-      success: true,
-      message: "Create new product successfully",
-    });
+    await newTour.save();
+    res.status(200).json({ message: "Tour added successfully!" });
   } catch (error) {
-    console.log(error);
-    res.status(500).send({
-      message: "Create new product failed",
-      success: false,
-      error: error,
-    });
+    console.error("Error adding tour:", error);
+    res.status(500).json({ message: "There was an error adding the tour!" });
   }
 };
 
@@ -42,171 +60,61 @@ const getAllTours = async (req, res) => {
     });
   }
 };
+const updateTour = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { inforTourDetail, ...updateData } = req.body;
+    // console.log(id, inforTourDetail, ...updateData);
+    // Parse inforTourDetail if it's a JSON string
+    if (typeof inforTourDetail === "string") {
+      inforTourDetail = JSON.parse(inforTourDetail);
+    }
 
-// // get a user
-// const getsignProduct = async (req, res) => {
-//   const { id } = req.params;
-//   try {
-//     const getProduct = await productModel.findById(id).populate("updateBy");
-//     res.status(200).json({
-//       success: true,
-//       message: "Get user successfully !",
-//       getProduct,
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send({
-//       success: false,
-//       message: "Get user error !",
-//     });
-//   }
-// };
+    // Update images if new files are uploaded
+    if (req.files && req.files.length > 0) {
+      updateData.images = req.files.map((file) => file.path);
+    }
 
-// update user
-// const updateProduct = asyncHandle(async (req, res) => {
-// const { _id } = req.params;
-// try {
-//   // Hash lại mật khẩu mới nếu có
-//   if (req.body.password) {
-//     const salt =
-//       await bcrypt.genSaltSync(10);
-//     req.body.password =
-//       await bcrypt.hash(
-//         req.body.password,
-//         salt
-//       );
-//   }
-//   const user =
-//     await productModel.findByIdAndUpdate(
-//       _id,
-//       {
-//         name: req?.body?.name,
-//         email: req?.body?.email,
-//         mobile: req?.body?.mobile,
-//         password:
-//           req?.body?.password,
-//         role: req?.body?.role,
-//       },
-//       {
-//         new: true,
-//       }
-//     );
-//   res.json(user);
-// } catch (error) {
-//   console.log(error);
-//   res.status(500).send({
-//     success: false,
-//     message: "Update user error !",
-//   });
-// }
-// });
+    // Merge inforTourDetail back if it exists in the update data
+    if (inforTourDetail) {
+      updateData.inforTourDetail = inforTourDetail;
+    }
 
-// delete a user
-// const deletesignProduct = async (req, res) => {
-//   const { id } = req.params;
-//   try {
-//     const product = await productModel.findByIdAndDelete(id);
-//     res.status(200).json({
-//       success: true,
-//       message: "delete product successfully !",
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).send({
-//       success: false,
-//       message: "delete product error !",
-//     });
-//   }
-// };
-// const filterProduct = async (req, res) => {
-//   const filters = req.body;
-//   const filterQuery = {};
-//   if (filters.city) filterQuery.city = filters.city;
-//   if (filters.action) filterQuery.action = filters.action;
-//   if (filters.type) filterQuery.type = filters.type;
-//   console.log(filterQuery.price);
-//   if (filters.price) {
-//     switch (filters.price) {
-//       case "1":
-//         filterQuery.price = {
-//           $lt: 500000,
-//         };
-//         break;
-//       case "2":
-//         filterQuery.price = {
-//           $gte: 500000,
-//           $lte: 1000000,
-//         };
-//         break;
-//       case "3":
-//         filterQuery.price = {
-//           $gte: 1000000,
-//           $lte: 2000000,
-//         };
-//         break;
-//       case "4":
-//         filterQuery.price = {
-//           $gte: 2000000,
-//           $lte: 3000000,
-//         };
-//         break;
-//       case "5":
-//         filterQuery.price = {
-//           $gt: 3000000,
-//         };
-//         break;
-//     }
-//   }
+    const updatedTour = await tourModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
-//   try {
-//     const products = await productModel.find(filterQuery);
-//     res.status(200).json(products);
-//   } catch (error) {
-//     res.status(400).json({ message: error.message });
-//   }
-// };
-// const updateSp = async (req, res) => {
-//   try {
-//     const { _id, status } = req.body;
+    if (!updatedTour) {
+      return res.status(404).json({ message: "Tour not found" });
+    }
 
-//     // Kiểm tra dữ liệu đầu vào
-//     if (!_id || typeof status === "undefined") {
-//       return res.status(400).json({
-//         message: "Thiếu dữ liệu yêu cầu",
-//       });
-//     }
+    res.json({ message: "Tour updated successfully", tour: updatedTour });
+  } catch (error) {
+    console.error("Error updating tour:", error);
+    res.status(500).json({ message: "There was an error updating the tour!" });
+  }
+};
 
-//     const product = await productModel.findById(_id);
+const deleteTour = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-//     if (!product) {
-//       return res.status(404).json({
-//         message: "Không thấy id sản phẩm này",
-//       });
-//     }
+    const deletedTour = await tourModel.findByIdAndDelete(id);
 
-//     product.statusProduct = status;
+    if (!deletedTour) {
+      return res.status(404).json({ message: "Tour not found" });
+    }
 
-//     await product.save();
-
-//     res.status(200).json({
-//       message: "Cập nhật sản phẩm thành công",
-//       product,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Cập nhật sản phẩm thất bại",
-//       error: error.message,
-//     });
-//   }
-// };
+    res.json({ message: "Tour deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 module.exports = {
   addTour,
   getAllTours,
-  // updateSp,
-  // getsignProduct,
-  // deletesignProduct,
-  // updateProduct,
-  // getAllProduct,
-  // filterProduct,
+  deleteTour,
+  updateTour,
 };

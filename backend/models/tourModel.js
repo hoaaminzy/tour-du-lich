@@ -1,29 +1,7 @@
 const mongoose = require("mongoose");
 
-var tourSchema = new mongoose.Schema(
+const inforTourDetailSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      required: true,
-    },
-    slug: {
-      type: String,
-      required: true,
-    },
-    city: {
-      type: String,
-      required: true,
-    },
-    endCity: {
-      type: String,
-      required: true,
-    },
-    image: {
-      image1: { type: String, required: false },
-      image2: { type: String, required: false },
-      image3: { type: String, required: false },
-      image4: { type: String, required: false },
-    },
     price: {
       price: { type: String, required: true },
       priceBaby: { type: String, required: false },
@@ -45,6 +23,33 @@ var tourSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+  },
+  { timestamps: true }
+);
+
+const tourDetailSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+    },
+    slug: {
+      type: String,
+      required: true,
+    },
+    city: {
+      type: String,
+      required: true,
+    },
+    endCity: {
+      type: String,
+      required: true,
+    },
+    images: [{ type: String }],
+    inforTourDetail: {
+      type: [inforTourDetailSchema], 
+      required: true, 
+    },
     vehicle: {
       type: String,
       required: true,
@@ -57,12 +62,13 @@ var tourSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    // updateBy: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "User",
-    // },
+    combo: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("tour", tourSchema);
+module.exports = mongoose.model("tourDetail", tourDetailSchema);
